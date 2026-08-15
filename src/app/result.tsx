@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons"; // Expo's built-in icon library
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function ResultScreen() {
@@ -16,7 +16,7 @@ export default function ResultScreen() {
 
   // For now, we simulate a backend check.
   // Let's pretend any batch number starting with "FAKE" is a counterfeit.
-  const batchNumber = (params.batch || params.barcode || "UNKNOWN")
+  const batchNumber = (params.batchNumber || params.barcode || "UNKNOWN")
     .toString()
     .toUpperCase();
   const isSafe = !batchNumber.startsWith("FAKE");
@@ -60,6 +60,20 @@ export default function ResultScreen() {
           <Text style={styles.label}>Batch Number:</Text>
           <Text style={styles.value}>{batchNumber}</Text>
         </View>
+
+        {params.mfdDate ? (
+          <View style={styles.row}>
+            <Text style={styles.label}>Manufacturing Date:</Text>
+            <Text style={styles.value}>{params.mfdDate}</Text>
+          </View>
+        ) : null}
+
+        {params.expDate ? (
+          <View style={styles.row}>
+            <Text style={styles.label}>Expiration Date:</Text>
+            <Text style={styles.value}>{params.expDate}</Text>
+          </View>
+        ) : null}
 
         {params.dose ? (
           <View style={styles.row}>

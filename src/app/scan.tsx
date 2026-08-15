@@ -3,11 +3,11 @@ import { recognizeText } from "expo-mlkit-ocr";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { getUserLocation } from "../services/location";
 import { parseIndianMedicineLabel } from "../services/ocrParser";
@@ -72,19 +72,22 @@ export default function ScanScreen() {
           skipProcessing: true,
         });
 
-        // 2. Extract text locally via ML Kit OCR
+        // 2. Extract text locally via ML Kit OCR on the CROPPED image
         const ocrResult = await recognizeText(photo.uri);
         const extractedData = parseIndianMedicineLabel(ocrResult.text);
-
         // 3. Grab background location
         const location = await getUserLocation();
 
         setLoading(false);
 
-        // Check if we found meaningful details
-        if (extractedData.batchNumber || extractedData.expDate) {
+        // Check if we found meaningful details (Added .name check here)
+        if (
+          extractedData.batchNumber ||
+          extractedData.expDate ||
+          extractedData.name
+        ) {
           router.push({
-            pathname: "/result",
+            pathname: "/manual-entry",
             params: {
               ...extractedData,
               method: "ocr",
@@ -95,12 +98,13 @@ export default function ScanScreen() {
         } else {
           // LAYER 3: Ultimate Fallback -> Manual Entry
           alert(
-            "Could not read package text clearly. Please enter details manually.",
+            "Could not read package text clearly inside the frame. Please enter details manually.",
           );
           router.push("/manual-entry");
         }
       } catch (error) {
         setLoading(false);
+        console.error("OCR Capture Error: ", error);
         router.push("/manual-entry");
       }
     }

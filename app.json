@@ -34,7 +34,8 @@
           "imageWidth": 76
         }
       ],
-      "expo-mlkit-ocr"
+      "expo-mlkit-ocr",
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,
