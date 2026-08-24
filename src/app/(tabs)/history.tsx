@@ -1,14 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import {
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 
-// In a real app, this data will come from your backend database.
+// In a real app, this data will be fetched from your backend database.
 const MOCK_HISTORY = [
   {
     id: "1",
@@ -34,8 +26,6 @@ const MOCK_HISTORY = [
 ];
 
 export default function HistoryScreen() {
-  const router = useRouter();
-
   // This function tells FlatList how to draw a single item in the list
   const renderHistoryCard = ({ item }: { item: any }) => (
     <View style={styles.card}>
@@ -66,23 +56,16 @@ export default function HistoryScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header with a Back Button */}
+      {/* Header (No back button needed in a Tab screen) */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#0f172a" />
-        </TouchableOpacity>
         <Text style={styles.title}>Scan History</Text>
-        <View style={{ width: 24 }} />
       </View>
 
       {/* The List Component */}
       <FlatList
-        data={MOCK_HISTORY} // The array of data
-        keyExtractor={(item) => item.id} // Tells React how to uniquely identify each rows
-        renderItem={renderHistoryCard} // The function we created above
+        data={MOCK_HISTORY}
+        keyExtractor={(item) => item.id}
+        renderItem={renderHistoryCard}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
@@ -96,21 +79,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 60, // Added top padding to account for the physical phone notch
     paddingBottom: 16,
     backgroundColor: "#ffffff",
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-  backButton: {
-    padding: 4,
-  },
   title: {
-    fontSize: 20,
+    fontSize: 28, // Made slightly larger to act as a proper screen header
     fontWeight: "bold",
     color: "#0f172a",
   },

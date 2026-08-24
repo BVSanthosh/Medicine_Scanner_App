@@ -1,14 +1,14 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function LoginScreen() {
@@ -24,7 +24,7 @@ export default function LoginScreen() {
 
     // Simulate a successful login
     // In the future, this will connect to your backend database
-    router.replace("/");
+    router.replace("/(tabs)/scan");
   };
 
   return (

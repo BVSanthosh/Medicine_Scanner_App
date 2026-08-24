@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons"; // Expo's built-in icon library
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ScrollView,
@@ -10,20 +10,20 @@ import {
 
 export default function ResultScreen() {
   const router = useRouter();
-
-  // This hook grabs the data passed from the previous screen
   const params = useLocalSearchParams();
 
-  // For now, we simulate a backend check.
-  // Let's pretend any batch number starting with "FAKE" is a counterfeit.
+  // Simulated Backend Verification
+  // In production, your FastAPI backend will return the true safety status.
   const batchNumber = (params.batchNumber || params.barcode || "UNKNOWN")
     .toString()
     .toUpperCase();
-  const isSafe = !batchNumber.startsWith("FAKE");
+
+  // Mock logic: Any batch starting with "FAKE" or missing a batch number is flagged.
+  const isSafe = !batchNumber.startsWith("FAKE") && batchNumber !== "UNKNOWN";
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Dynamic Status Card (Turns Green or Red based on safety) */}
+      {/* Dynamic Status Card */}
       <View
         style={[
           styles.statusCard,
@@ -32,7 +32,7 @@ export default function ResultScreen() {
       >
         <Ionicons
           name={isSafe ? "checkmark-circle" : "warning"}
-          size={64}
+          size={72}
           color={isSafe ? "#16a34a" : "#dc2626"}
         />
         <Text style={styles.statusTitle}>
@@ -41,7 +41,7 @@ export default function ResultScreen() {
         <Text style={styles.statusSubtitle}>
           {isSafe
             ? "This medicine has been verified against the official database."
-            : "This batch number has been flagged. Do not consume!"}
+            : "This batch number has been flagged or could not be found. Do not consume!"}
         </Text>
       </View>
 
@@ -52,7 +52,7 @@ export default function ResultScreen() {
         <View style={styles.row}>
           <Text style={styles.label}>Name:</Text>
           <Text style={styles.value}>
-            {params.name || "Unknown (Scanned from Barcode)"}
+            {params.name ? params.name : "Unknown"}
           </Text>
         </View>
 
@@ -63,14 +63,14 @@ export default function ResultScreen() {
 
         {params.mfdDate ? (
           <View style={styles.row}>
-            <Text style={styles.label}>Manufacturing Date:</Text>
+            <Text style={styles.label}>Mfg Date:</Text>
             <Text style={styles.value}>{params.mfdDate}</Text>
           </View>
         ) : null}
 
         {params.expDate ? (
           <View style={styles.row}>
-            <Text style={styles.label}>Expiration Date:</Text>
+            <Text style={styles.label}>Exp Date:</Text>
             <Text style={styles.value}>{params.expDate}</Text>
           </View>
         ) : null}
@@ -86,7 +86,7 @@ export default function ResultScreen() {
       {/* Return Button */}
       <TouchableOpacity
         style={styles.button}
-        onPress={() => router.replace("/")} // .replace() removes history so the user can't "swipe back" to the loading screen
+        onPress={() => router.replace("/(tabs)/scan")}
       >
         <Text style={styles.buttonText}>Scan Another Medicine</Text>
       </TouchableOpacity>
@@ -96,26 +96,27 @@ export default function ResultScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-  content: { padding: 24 },
+  content: { padding: 24, paddingBottom: 40 },
   statusCard: {
     alignItems: "center",
-    padding: 24,
+    padding: 32,
     borderRadius: 16,
     borderWidth: 2,
     marginBottom: 24,
-    marginTop: 20,
+    marginTop: 10,
   },
   safeCard: { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" },
   dangerCard: { backgroundColor: "#fef2f2", borderColor: "#fecaca" },
   statusTitle: {
     fontSize: 22,
     fontWeight: "bold",
-    marginTop: 12,
+    marginTop: 16,
     textAlign: "center",
     color: "#0f172a",
   },
   statusSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 22,
     color: "#475569",
     textAlign: "center",
     marginTop: 8,
@@ -132,23 +133,30 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#0f172a",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
-  label: { fontSize: 14, color: "#64748b" },
-  value: { fontSize: 14, fontWeight: "bold", color: "#0f172a" },
+  label: { fontSize: 14, color: "#64748b", flex: 1 },
+  value: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#0f172a",
+    flex: 1,
+    textAlign: "right",
+  },
   button: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#2563eb",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
+    elevation: 2,
   },
-  buttonText: { color: "#ffffff", fontSize: 16, fontWeight: "bold" },
+  buttonText: { color: "#ffffff", fontSize: 18, fontWeight: "bold" },
 });

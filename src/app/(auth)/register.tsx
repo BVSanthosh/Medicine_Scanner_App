@@ -2,15 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function RegisterScreen() {
@@ -37,7 +37,7 @@ export default function RegisterScreen() {
 
     // Simulate successful registration
     Alert.alert("Success", "Account created successfully!", [
-      { text: "OK", onPress: () => router.replace("/") },
+      { text: "OK", onPress: () => router.replace("/(tabs)/scan") },
     ]);
   };
 
