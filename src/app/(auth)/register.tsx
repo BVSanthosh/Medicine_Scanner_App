@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -22,7 +23,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     // 1. Check if any fields are empty
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert("Error", "Please fill in all fields.");
@@ -35,10 +36,14 @@ export default function RegisterScreen() {
       return;
     }
 
-    // Simulate successful registration
-    Alert.alert("Success", "Account created successfully!", [
-      { text: "OK", onPress: () => router.replace("/(tabs)/scan") },
-    ]);
+    // 3. Save the token so app/index.tsx knows the user is authenticated
+    await AsyncStorage.setItem("userToken", "mock_jwt_token_123");
+
+    // 4. Force the onboarding guide to show for this new account
+    await AsyncStorage.removeItem("hasSeenOnboarding");
+
+    // 5. Route directly to the main scanner tab with no success alerts!
+    router.replace("/instructions");
   };
 
   return (
@@ -46,10 +51,6 @@ export default function RegisterScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      {/* 
-        We use a ScrollView here because Registration forms are longer. 
-        On smaller phones, the keyboard would cover the bottom fields.
-      */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -112,7 +113,7 @@ export default function RegisterScreen() {
 
         <View style={styles.loginContainer}>
           <Text style={styles.loginText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
             <Text style={styles.loginLink}>Log In</Text>
           </TouchableOpacity>
         </View>
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingTop: 48, // Extra padding for the back button
+    paddingTop: 48,
     paddingBottom: 40,
   },
   backButton: {

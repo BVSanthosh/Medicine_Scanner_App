@@ -13,7 +13,6 @@ export default function ResultScreen() {
   const params = useLocalSearchParams();
 
   // Simulated Backend Verification
-  // In production, your FastAPI backend will return the true safety status.
   const batchNumber = (params.batchNumber || params.barcode || "UNKNOWN")
     .toString()
     .toUpperCase();
@@ -55,6 +54,13 @@ export default function ResultScreen() {
             {params.name ? params.name : "Unknown"}
           </Text>
         </View>
+
+        {params.salt ? (
+          <View style={styles.row}>
+            <Text style={styles.label}>Active Salt:</Text>
+            <Text style={styles.value}>{params.salt}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.row}>
           <Text style={styles.label}>Batch Number:</Text>

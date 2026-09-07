@@ -1,3 +1,5 @@
+import { FontAwesome5 } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -16,19 +18,28 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert("Error", "Please enter both email and password.");
       return;
     }
 
-    // Simulate a successful login
-    // In the future, this will connect to your backend database
+    // Save token to local storage so app/index.tsx knows the user is authenticated
+    await AsyncStorage.setItem("userToken", "mock_jwt_token_123");
+
+    // Route to the main tab navigator
+    router.replace("/(tabs)/scan");
+  };
+
+  const handleSocialLogin = async (provider: string) => {
+    // In production, this would trigger the Expo AuthSession or Firebase Auth flow
+    console.log(`Logging in with ${provider}...`);
+
+    await AsyncStorage.setItem("userToken", `mock_${provider}_token_123`);
     router.replace("/(tabs)/scan");
   };
 
   return (
-    // KeyboardAvoidingView prevents the digital keyboard from covering the inputs
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
@@ -45,7 +56,7 @@ export default function LoginScreen() {
           placeholder="Enter your email"
           value={email}
           onChangeText={setEmail}
-          keyboardType="email-address" // Shows the "@" symbol on the keyboard
+          keyboardType="email-address"
           autoCapitalize="none"
         />
 
@@ -55,11 +66,35 @@ export default function LoginScreen() {
           placeholder="Enter your password"
           value={password}
           onChangeText={setPassword}
-          secureTextEntry={true} // Hides the typed characters like a password field
+          secureTextEntry={true}
         />
 
         <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
           <Text style={styles.loginButtonText}>Login</Text>
+        </TouchableOpacity>
+
+        {/* Divider */}
+        <View style={styles.dividerContainer}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>Or continue with</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Social Login Buttons */}
+        <TouchableOpacity
+          style={styles.socialButton}
+          onPress={() => handleSocialLogin("Google")}
+        >
+          <FontAwesome5 name="google" size={20} color="#db4437" />
+          <Text style={styles.socialButtonText}>Continue with Google</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.socialButton}
+          onPress={() => handleSocialLogin("Apple")}
+        >
+          <FontAwesome5 name="apple" size={24} color="#000000" />
+          <Text style={styles.socialButtonText}>Continue with Apple</Text>
         </TouchableOpacity>
 
         <View style={styles.registerContainer}>
@@ -122,10 +157,44 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
+  // Divider Styles
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#e2e8f0",
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: "#64748b",
+    fontSize: 14,
+  },
+  // Social Button Styles
+  socialButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  socialButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0f172a",
+    marginLeft: 12,
+  },
   registerContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 24,
+    marginTop: 16,
   },
   registerText: {
     color: "#64748b",

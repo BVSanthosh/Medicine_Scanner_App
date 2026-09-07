@@ -1,11 +1,9 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { recognizeText } from "expo-mlkit-ocr";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,31 +17,9 @@ export default function ScannerScreen() {
   const cameraRef = useRef<any>(null);
 
   // State Management
-  const [showGuide, setShowGuide] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
   const [scanned, setScanned] = useState(false);
-
-  // 1. Check for First-Time Launch
-  useEffect(() => {
-    checkOnboarding();
-  }, []);
-
-  const checkOnboarding = async () => {
-    try {
-      const hasSeenGuide = await AsyncStorage.getItem("hasSeenOnboarding");
-      if (!hasSeenGuide) {
-        setShowGuide(true);
-      }
-    } catch (error) {
-      console.error("Failed to load onboarding status", error);
-    }
-  };
-
-  const dismissGuide = async () => {
-    await AsyncStorage.setItem("hasSeenOnboarding", "true");
-    setShowGuide(false);
-  };
 
   if (!permission?.granted) {
     return (
@@ -63,7 +39,7 @@ export default function ScannerScreen() {
 
   // 2. LAYER 1: Standard Barcode Scan
   const handleBarcodeScanned = async ({ data }: { data: string }) => {
-    if (scanned || showGuide || loading) return;
+    if (scanned || loading) return;
     setScanned(true);
     setLoading(true);
     setLoadingText("Verifying barcode...");
@@ -93,7 +69,7 @@ export default function ScannerScreen() {
       // 1. Take the full-resolution photo
       const photo = await cameraRef.current.takePictureAsync();
 
-      // 2. Pass the  image to the OCR
+      // 2. Pass the image to the OCR
       const ocrResult = await recognizeText(photo.uri);
       const rawText = ocrResult.text;
 
@@ -184,49 +160,6 @@ export default function ScannerScreen() {
           </TouchableOpacity>
         )}
       </View>
-
-      {/* Onboarding Modal */}
-      <Modal visible={showGuide} animationType="fade" transparent={true}>
-        <View style={styles.modalBackground}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>How to Scan</Text>
-
-            <View style={styles.stepRow}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepText}>1</Text>
-              </View>
-              <Text style={styles.stepDescription}>
-                Align the barcode inside the blue box.
-              </Text>
-            </View>
-
-            <View style={styles.stepRow}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepText}>2</Text>
-              </View>
-              <Text style={styles.stepDescription}>
-                Ensure good lighting to avoid glare.
-              </Text>
-            </View>
-
-            <View style={styles.stepRow}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepText}>3</Text>
-              </View>
-              <Text style={styles.stepDescription}>
-                If barcode fails, tap "Capture Text" to read the label.
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={dismissGuide}
-            >
-              <Text style={styles.buttonText}>Get Started</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -294,38 +227,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-
-  // Modal Styles
-  modalBackground: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  modalCard: {
-    backgroundColor: "#ffffff",
-    padding: 24,
-    borderRadius: 16,
-    width: "100%",
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  stepRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#dbeafe",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  stepText: { color: "#2563eb", fontWeight: "bold", fontSize: 16 },
-  stepDescription: { flex: 1, fontSize: 15, color: "#334155" },
 });

@@ -19,6 +19,7 @@ export default function ManualEntryScreen() {
 
   // Form State
   const [name, setName] = useState("");
+  const [salt, setSalt] = useState("");
   const [batchNumber, setBatchNumber] = useState("");
   const [mfdDate, setMfdDate] = useState("");
   const [expDate, setExpDate] = useState("");
@@ -31,6 +32,7 @@ export default function ManualEntryScreen() {
   useEffect(() => {
     if (params) {
       setName((params.name as string) || "");
+      setSalt((params.salt as string) || "");
       setBatchNumber((params.batchNumber as string) || "");
       setMfdDate((params.mfdDate as string) || "");
       setExpDate((params.expDate as string) || "");
@@ -43,6 +45,7 @@ export default function ManualEntryScreen() {
     }
   }, [
     params.name,
+    params.salt,
     params.batchNumber,
     params.mfdDate,
     params.expDate,
@@ -64,6 +67,7 @@ export default function ManualEntryScreen() {
       pathname: "/result",
       params: {
         name,
+        salt,
         batchNumber,
         mfdDate,
         expDate,
@@ -110,9 +114,17 @@ export default function ManualEntryScreen() {
           <Text style={styles.label}>Medicine Name</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g. Paracetamol"
+            placeholder="e.g. Tylenol"
             value={name}
             onChangeText={setName}
+          />
+
+          <Text style={styles.label}>Salt (Active Ingredient)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Paracetamol"
+            value={salt}
+            onChangeText={setSalt}
           />
 
           <Text style={styles.label}>Batch Number *</Text>

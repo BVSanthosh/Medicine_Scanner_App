@@ -1,22 +1,43 @@
 import * as Location from "expo-location";
+import { Alert, Linking } from "react-native";
 
 export async function getUserLocation() {
   try {
-    // 1. Prompt the user for permission to access location
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    // 1. Check current permission status before asking
+    const { status: existingStatus, canAskAgain } =
+      await Location.getForegroundPermissionsAsync();
 
-    // If they click "Deny", we just return null and move on smoothly
-    if (status !== "granted") {
-      console.log("Permission to access location was denied");
+    let finalStatus = existingStatus;
+
+    // 2. If we don't have permission and the OS allows us to ask, request it
+    if (existingStatus !== "granted" && canAskAgain) {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      finalStatus = status;
+    }
+
+    // 3. If they denied it (or previously denied it forever), prompt them to open OS Settings
+    if (finalStatus !== "granted") {
+      Alert.alert(
+        "Location Required",
+        "Location permissions are needed to track where this medicine is being scanned to help detect counterfeit hotspots. Please enable it in your settings.",
+        [
+          { text: "Continue Without", style: "cancel" },
+          {
+            text: "Open Settings",
+            // Linking.openSettings() automatically deep-links to your app's specific settings page
+            onPress: () => Linking.openSettings(),
+          },
+        ],
+      );
       return null;
     }
 
-    // 2. Fetch the actual GPS coordinates
+    // 4. Fetch the actual GPS coordinates
     const location = await Location.getCurrentPositionAsync({
+      // Balanced is faster and uses less battery than Highest
       accuracy: Location.Accuracy.Balanced,
     });
 
-    // Return an object with just the data we care about
     return {
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
