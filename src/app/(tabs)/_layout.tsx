@@ -1,42 +1,57 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { Platform } from "react-native";
+import { StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, typography } from "../../theme";
+
+const TAB_BAR_HEIGHT = 58;
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#2563eb",
-        tabBarInactiveTintColor: "#94a3b8",
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        // Derive the bar height from the real inset instead of hard-coding it
+        // per platform, so it sits flush with the gesture bar / home indicator.
         tabBarStyle: {
-          backgroundColor: "#ffffff",
-          borderTopColor: "#e2e8f0",
-          height: Platform.OS === "ios" ? 88 : 64,
-          paddingBottom: Platform.OS === "ios" ? 28 : 10,
-          paddingTop: 8,
+          backgroundColor: colors.surface,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
+          height: TAB_BAR_HEIGHT + insets.bottom,
+          paddingBottom: insets.bottom,
+          paddingTop: 6,
         },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: "600",
-        },
+        tabBarItemStyle: { paddingVertical: 2 },
+        tabBarLabelStyle: { ...typography.caption, marginTop: 2 },
       }}
     >
       <Tabs.Screen
         name="scan"
         options={{
           title: "Scan",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="scan-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "scan" : "scan-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="manual-entry"
         options={{
-          title: "Manual Entry",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="create-outline" size={size} color={color} />
+          title: "Enter",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "create" : "create-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
@@ -44,8 +59,12 @@ export default function TabLayout() {
         name="history"
         options={{
           title: "History",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time-outline" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "time" : "time-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />

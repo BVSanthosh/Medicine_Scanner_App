@@ -1,121 +1,244 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppButton } from "../../components/AppButton";
+import { TextField } from "../../components/TextField";
+import { colors, radius, spacing, typography } from "../../theme";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
+
+type Errors = Partial<
+  Record<"name" | "email" | "password" | "confirmPassword", string>
+>;
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  // State for all our form fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<Errors>({});
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleRegister = async () => {
-    // 1. Check if any fields are empty
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields.");
-      return;
+  const strength = useMemo(() => {
+    if (!password) return 0;
+    let score = 0;
+    if (password.length >= MIN_PASSWORD_LENGTH) score += 1;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score += 1;
+    if (/\d/.test(password)) score += 1;
+    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    return score;
+  }, [password]);
+
+  const strengthMeta = [
+    { label: "Too short", color: colors.danger },
+    { label: "Weak", color: colors.danger },
+    { label: "Fair", color: colors.warning },
+    { label: "Good", color: colors.primary },
+    { label: "Strong", color: colors.success },
+  ][strength];
+
+  const clearError = useCallback(
+    (key: keyof Errors) => setErrors((e) => ({ ...e, [key]: undefined })),
+    [],
+  );
+
+  const handleRegister = useCallback(async () => {
+    const nextErrors: Errors = {};
+
+    if (!name.trim()) nextErrors.name = "Enter your name.";
+    if (!email.trim()) nextErrors.email = "Enter your email address.";
+    else if (!EMAIL_RE.test(email.trim()))
+      nextErrors.email = "That does not look like a valid email address.";
+    if (password.length < MIN_PASSWORD_LENGTH)
+      nextErrors.password = `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+    if (confirmPassword !== password)
+      nextErrors.confirmPassword = "Passwords do not match.";
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+
+    setSubmitting(true);
+    try {
+      // ==== TODO: REPLACE WITH THE REAL API CALL ==========================
+      //
+      // const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({
+      //     name: name.trim(),
+      //     email: email.trim(),
+      //     password,
+      //   }),
+      // });
+      //
+      // if (!response.ok) throw new Error("That email is already registered.");
+      //
+      // const { token } = await response.json();
+      //
+      // ====================================================================
+      await AsyncStorage.setItem("userToken", "mock_jwt_token_123");
+      // A brand new account always sees the scanning guide first.
+      await AsyncStorage.removeItem("hasSeenOnboarding");
+      router.replace("/instructions");
+    } catch (error) {
+      Alert.alert(
+        "Could not create your account",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong creating your account. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
     }
-
-    // 2. Check if passwords match
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match!");
-      return;
-    }
-
-    // 3. Save the token so app/index.tsx knows the user is authenticated
-    await AsyncStorage.setItem("userToken", "mock_jwt_token_123");
-
-    // 4. Force the onboarding guide to show for this new account
-    await AsyncStorage.removeItem("hasSeenOnboarding");
-
-    // 5. Route directly to the main scanner tab with no success alerts!
-    router.replace("/instructions");
-  };
+  }, [confirmPassword, email, name, password, router]);
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={styles.container}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + spacing.lg,
+            paddingBottom: insets.bottom + spacing.xxl,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Back Button */}
-        <TouchableOpacity
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={8}
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#0f172a" />
-        </TouchableOpacity>
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
+        </Pressable>
 
-        <Text style={styles.title}>Create Account</Text>
+        <Text style={styles.title}>Create account</Text>
         <Text style={styles.subtitle}>
-          Join MediCheck to verify and track your medicines securely.
+          Join MediCheck to verify medicines and keep a record of every scan.
         </Text>
 
-        <Text style={styles.label}>Full Name</Text>
-        <TextInput
-          style={styles.input}
+        <TextField
+          label="Full name"
           placeholder="e.g. Jane Doe"
+          icon="person-outline"
           value={name}
-          onChangeText={setName}
+          onChangeText={(value) => {
+            setName(value);
+            if (errors.name) clearError("name");
+          }}
+          error={errors.name}
+          autoCapitalize="words"
+          autoComplete="name"
+          returnKeyType="next"
         />
 
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email"
+        <TextField
+          label="Email"
+          placeholder="you@example.com"
+          icon="mail-outline"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(value) => {
+            setEmail(value);
+            if (errors.email) clearError("email");
+          }}
+          error={errors.email}
           keyboardType="email-address"
           autoCapitalize="none"
+          autoComplete="email"
+          textContentType="emailAddress"
+          returnKeyType="next"
         />
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Create a password"
+        <TextField
+          label="Password"
+          placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+          icon="lock-closed-outline"
+          secure
           value={password}
-          onChangeText={setPassword}
-          secureTextEntry={true}
+          onChangeText={(value) => {
+            setPassword(value);
+            if (errors.password) clearError("password");
+          }}
+          error={errors.password}
+          autoComplete="new-password"
+          textContentType="newPassword"
+          returnKeyType="next"
         />
 
-        <Text style={styles.label}>Confirm Password</Text>
-        <TextInput
-          style={styles.input}
+        {password ? (
+          <View style={styles.strength}>
+            <View style={styles.strengthTrack}>
+              <View
+                style={[
+                  styles.strengthFill,
+                  {
+                    width: `${(strength / 4) * 100}%`,
+                    backgroundColor: strengthMeta.color,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={[styles.strengthLabel, { color: strengthMeta.color }]}>
+              {strengthMeta.label}
+            </Text>
+          </View>
+        ) : null}
+
+        <TextField
+          label="Confirm password"
           placeholder="Repeat your password"
+          icon="lock-closed-outline"
+          secure
           value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry={true}
+          onChangeText={(value) => {
+            setConfirmPassword(value);
+            if (errors.confirmPassword) clearError("confirmPassword");
+          }}
+          error={errors.confirmPassword}
+          autoComplete="new-password"
+          textContentType="newPassword"
+          returnKeyType="go"
+          onSubmitEditing={handleRegister}
         />
 
-        <TouchableOpacity
-          style={styles.registerButton}
+        <AppButton
+          label="Sign up"
           onPress={handleRegister}
-        >
-          <Text style={styles.registerButtonText}>Sign Up</Text>
-        </TouchableOpacity>
+          loading={submitting}
+          style={styles.submit}
+        />
 
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
-            <Text style={styles.loginLink}>Log In</Text>
-          </TouchableOpacity>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Already have an account? </Text>
+          <Pressable
+            accessibilityRole="link"
+            hitSlop={8}
+            onPress={() => router.replace("/(auth)/login")}
+          >
+            <Text style={styles.footerLink}>Log in</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -123,70 +246,54 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  scrollContent: {
-    padding: 24,
-    paddingTop: 48,
-    paddingBottom: 40,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.xl, flexGrow: 1 },
   backButton: {
-    marginBottom: 24,
-    alignSelf: "flex-start",
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#64748b",
-    marginBottom: 32,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 20,
-    color: "#0f172a",
-  },
-  registerButton: {
-    backgroundColor: "#2563eb",
-    paddingVertical: 16,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
     alignItems: "center",
-    marginTop: 12,
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.xl,
   },
-  registerButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
+  title: { ...typography.display, color: colors.text },
+  subtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xxl,
+    lineHeight: 22,
   },
-  loginContainer: {
+  strength: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: -spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  strengthTrack: {
+    flex: 1,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+    overflow: "hidden",
+  },
+  strengthFill: { height: "100%", borderRadius: radius.pill },
+  strengthLabel: {
+    ...typography.caption,
+    marginLeft: spacing.md,
+    minWidth: 62,
+    textAlign: "right",
+  },
+  submit: { marginTop: spacing.sm },
+  footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 24,
+    alignItems: "center",
+    marginTop: spacing.xl,
   },
-  loginText: {
-    color: "#64748b",
-    fontSize: 15,
-  },
-  loginLink: {
-    color: "#2563eb",
-    fontSize: 15,
-    fontWeight: "bold",
-  },
+  footerText: { ...typography.body, color: colors.textSecondary },
+  footerLink: { ...typography.body, color: colors.primary, fontWeight: "700" },
 });

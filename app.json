@@ -35,7 +35,21 @@
         }
       ],
       "expo-mlkit-ocr",
-      "expo-image"
+      "expo-image",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow MediCheck to use the camera so it can read the barcode and printed label on your medicine pack.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow MediCheck to use your location so counterfeit medicine reports can be mapped to the area they were found in."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

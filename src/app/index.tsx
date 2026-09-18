@@ -1,56 +1,82 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { useEffect } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing, typography } from "../theme";
 
 export default function Index() {
   const router = useRouter();
-  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        // 1. Check local storage for an active user session token
-        const userToken = await AsyncStorage.getItem("userToken");
+    let cancelled = false;
 
-        // 2. Route the user based on whether they are logged in
+    const route = async () => {
+      let destination: "/(auth)/login" | "/instructions" | "/(tabs)/scan" =
+        "/(auth)/login";
+
+      try {
+        const [userToken, hasSeenOnboarding] = await Promise.all([
+          AsyncStorage.getItem("userToken"),
+          AsyncStorage.getItem("hasSeenOnboarding"),
+        ]);
+
         if (userToken) {
-          // User is logged in -> Send to the main scanner
-          router.replace("/(tabs)/scan");
-        } else {
-          // No active session -> Send to the login screen
-          router.replace("/(auth)/login");
+          // Signed in, but show the guide once before the first scan.
+          destination = hasSeenOnboarding ? "/(tabs)/scan" : "/instructions";
         }
       } catch (error) {
+        // Storage is unavailable - fall back to the login screen.
         console.error("Auth check failed:", error);
-        // Fallback to the login screen if storage fails
-        router.replace("/(auth)/login");
-      } finally {
-        setIsChecking(false);
       }
+
+      if (!cancelled) router.replace(destination);
     };
 
-    checkAuthStatus();
-  }, []);
+    route();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
-  // Show a blank screen with a loading spinner while checking storage
-  if (isChecking) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+  return (
+    <View style={styles.container}>
+      <View style={styles.logo}>
+        <Ionicons name="shield-checkmark" size={44} color={colors.primary} />
       </View>
-    );
-  }
-
-  // Return null because the router.replace handles the actual UI transition
-  return null;
+      <Text style={styles.title}>MediCheck</Text>
+      <Text style={styles.tagline}>Scan. Verify. Take with confidence.</Text>
+      <ActivityIndicator
+        size="small"
+        color={colors.primary}
+        style={styles.spinner}
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
+  container: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8fafc",
+    backgroundColor: colors.background,
+    padding: spacing.xl,
   },
+  logo: {
+    width: 92,
+    height: 92,
+    borderRadius: radius.xl,
+    backgroundColor: colors.primarySurface,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xl,
+  },
+  title: { ...typography.display, color: colors.text },
+  tagline: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+  },
+  spinner: { marginTop: spacing.xxl },
 });

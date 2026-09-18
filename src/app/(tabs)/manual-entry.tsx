@@ -1,254 +1,331 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
+import { AppButton } from "../../components/AppButton";
+import { ScreenHeader } from "../../components/ScreenHeader";
+import { TextField } from "../../components/TextField";
+import { getUserLocation } from "../../services/location";
+import {
+  EMPTY_FIELDS,
+  toResultParams,
+  verifyManualEntry,
+  type MedicineFields,
+  type ScanMethod,
+} from "../../services/medicine";
+import { colors, radius, spacing, typography } from "../../theme";
+
+/** Route params arrive as `string | string[]`; collapse them to a single value. */
+const asText = (value: string | string[] | undefined) =>
+  (Array.isArray(value) ? value[0] : value) ?? "";
 
 export default function ManualEntryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // Form State
-  const [name, setName] = useState("");
-  const [salt, setSalt] = useState("");
-  const [batchNumber, setBatchNumber] = useState("");
-  const [mfdDate, setMfdDate] = useState("");
-  const [expDate, setExpDate] = useState("");
-  const [dose, setDose] = useState("");
+  const rawText = asText(params.rawText as string | string[] | undefined);
 
-  // Helper UI State
-  const [showRawText, setShowRawText] = useState(false);
+  const incomingMethod = asText(
+    params.method as string | string[] | undefined,
+  );
+  const gtin = asText(params.gtin as string | string[] | undefined);
+  const serial = asText(params.serial as string | string[] | undefined);
+  const barcode = asText(params.barcode as string | string[] | undefined);
 
-  // Sync state with incoming parameters when routed from the Scanner tab
-  useEffect(() => {
-    if (params) {
-      setName((params.name as string) || "");
-      setSalt((params.salt as string) || "");
-      setBatchNumber((params.batchNumber as string) || "");
-      setMfdDate((params.mfdDate as string) || "");
-      setExpDate((params.expDate as string) || "");
-      setDose((params.dose as string) || "");
+  // We only land here when the backend reported it needed more information.
+  const isPartialBarcode = incomingMethod === "barcode";
+  const isPartialScan = incomingMethod === "ocr";
 
-      // Automatically show the helper box if raw text was passed
-      if (params.rawText) {
-        setShowRawText(true);
-      }
-    }
-  }, [
-    params.name,
-    params.salt,
-    params.batchNumber,
-    params.mfdDate,
-    params.expDate,
-    params.dose,
-    params.rawText,
-  ]);
+  const submittedMethod: ScanMethod = isPartialBarcode
+    ? "barcode_corrected"
+    : rawText
+      ? "ocr_corrected"
+      : "manual";
 
-  const handleSubmit = () => {
-    if (!batchNumber) {
-      Alert.alert(
-        "Required Field",
-        "Please enter at least the Batch Number to verify the medicine.",
-      );
+  const prefill: MedicineFields = useMemo(
+    () => ({
+      name: asText(params.name as string | string[] | undefined),
+      salt: asText(params.salt as string | string[] | undefined),
+      batchNumber: asText(params.batchNumber as string | string[] | undefined),
+      mfdDate: asText(params.mfdDate as string | string[] | undefined),
+      expDate: asText(params.expDate as string | string[] | undefined),
+      dose: asText(params.dose as string | string[] | undefined),
+    }),
+    [
+      params.name,
+      params.salt,
+      params.batchNumber,
+      params.mfdDate,
+      params.expDate,
+      params.dose,
+    ],
+  );
+
+  // Keying the form on the incoming params means a fresh scan resets the fields
+  // without an effect that could clobber what the user is currently typing.
+  const [formKey, setFormKey] = useState(() => JSON.stringify(prefill));
+  const [fields, setFields] = useState<MedicineFields>(prefill);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [showRawText, setShowRawText] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  const incomingKey = JSON.stringify(prefill);
+  if (incomingKey !== formKey) {
+    setFormKey(incomingKey);
+    setFields(prefill);
+    setBatchError(null);
+    setShowRawText(true);
+  }
+
+  const update = useCallback(
+    (key: keyof MedicineFields) => (value: string) => {
+      setFields((current) => ({ ...current, [key]: value }));
+      if (key === "batchNumber") setBatchError(null);
+    },
+    [],
+  );
+
+  const handleSubmit = useCallback(async () => {
+    if (submitting) return;
+
+    if (!fields.batchNumber.trim()) {
+      setBatchError("A batch number is needed to check the register.");
       return;
     }
 
-    // Submit data to the Results screen
-    router.push({
-      pathname: "/result",
-      params: {
-        name,
-        salt,
-        batchNumber,
-        mfdDate,
-        expDate,
-        dose,
-        method: params.rawText ? "ocr_corrected" : "manual",
-        lat: params.lat || "",
-        lng: params.lng || "",
-      },
-    });
-  };
+    setSubmitting(true);
+    try {
+      const location = await getUserLocation();
+
+      // One call: nothing to extract here, so the backend only looks the batch
+      // up and returns the verdict.
+      const result = await verifyManualEntry(
+        fields,
+        location,
+        gtin || undefined,
+      );
+
+      router.push({
+        pathname: "/result",
+        params: {
+          ...toResultParams(result, {
+            method: submittedMethod,
+            location,
+            barcode,
+          }),
+          // Carried over from the barcode scan being corrected, so it survives
+          // the round trip through this form.
+          serial: result.serial || serial,
+        },
+      });
+    } catch (error) {
+      Alert.alert(
+        "Could not verify",
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while checking the register.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }, [barcode, fields, gtin, router, serial, submitting, submittedMethod]);
+
+  const handleClear = useCallback(() => {
+    setFields(EMPTY_FIELDS);
+    setBatchError(null);
+  }, []);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.container}>
+      <ScreenHeader
+        title="Enter details"
+        subtitle={
+          isPartialBarcode
+            ? "The barcode identified the product but carries no batch number - add it below."
+            : isPartialScan
+              ? "We read part of the label - fill in the rest."
+              : "Type the details printed on the pack."
+        }
+      />
+
+      <KeyboardAvoidingView
+        style={styles.fill}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Text style={styles.title}>Manual Entry</Text>
-        <Text style={styles.subtitle}>
-          Enter or correct the medicine details below for verification.
-        </Text>
-
-        {/* OCR Helper Box - Only renders if the LLM struggled and passed raw text */}
-        {showRawText && params.rawText && (
-          <View style={styles.helperBox}>
-            <View style={styles.helperHeader}>
-              <Text style={styles.helperTitle}>Extracted Text</Text>
-              <TouchableOpacity onPress={() => setShowRawText(false)}>
-                <Ionicons name="close-circle" size={24} color="#64748b" />
-              </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          {showRawText && rawText ? (
+            <View style={styles.helperBox}>
+              <View style={styles.helperHeader}>
+                <View style={styles.helperTitleRow}>
+                  <Ionicons
+                    name="scan-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.helperTitle}>Text we read</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss the scanned text"
+                  hitSlop={8}
+                  onPress={() => setShowRawText(false)}
+                >
+                  <Ionicons name="close" size={20} color={colors.textMuted} />
+                </Pressable>
+              </View>
+              <Text style={styles.helperText} selectable>
+                {rawText}
+              </Text>
+              <Text style={styles.helperInstruction}>
+                Copy the missing details from here into the fields below.
+              </Text>
             </View>
-            <Text style={styles.helperText}>{params.rawText}</Text>
-            <Text style={styles.helperInstruction}>
-              Use the text above to find the missing details.
-            </Text>
-          </View>
-        )}
+          ) : null}
 
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Medicine Name</Text>
-          <TextInput
-            style={styles.input}
+          <TextField
+            label="Medicine name"
             placeholder="e.g. Tylenol"
-            value={name}
-            onChangeText={setName}
+            icon="medkit-outline"
+            value={fields.name}
+            onChangeText={update("name")}
+            autoCapitalize="words"
+            returnKeyType="next"
           />
 
-          <Text style={styles.label}>Salt (Active Ingredient)</Text>
-          <TextInput
-            style={styles.input}
+          <TextField
+            label="Active ingredient"
             placeholder="e.g. Paracetamol"
-            value={salt}
-            onChangeText={setSalt}
+            icon="flask-outline"
+            value={fields.salt}
+            onChangeText={update("salt")}
+            autoCapitalize="words"
+            returnKeyType="next"
           />
 
-          <Text style={styles.label}>Batch Number *</Text>
-          <TextInput
-            style={styles.input}
+          <TextField
+            label="Batch number"
+            required
+            error={batchError}
+            hint="Usually printed near the expiry date as B.NO. or LOT."
             placeholder="e.g. B.NO.12345"
-            value={batchNumber}
-            onChangeText={setBatchNumber}
+            icon="barcode-outline"
+            value={fields.batchNumber}
+            onChangeText={update("batchNumber")}
             autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="next"
           />
 
-          <Text style={styles.label}>Manufacturing Date</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="MM/YYYY or DD/MM/YYYY"
-            value={mfdDate}
-            onChangeText={setMfdDate}
-          />
+          <View style={styles.row}>
+            <View style={styles.rowItem}>
+              <TextField
+                label="Manufactured"
+                placeholder="MM/YYYY"
+                value={fields.mfdDate}
+                onChangeText={update("mfdDate")}
+                keyboardType="numbers-and-punctuation"
+                returnKeyType="next"
+              />
+            </View>
+            <View style={styles.rowSpacer} />
+            <View style={styles.rowItem}>
+              <TextField
+                label="Expires"
+                placeholder="MM/YYYY"
+                value={fields.expDate}
+                onChangeText={update("expDate")}
+                keyboardType="numbers-and-punctuation"
+                returnKeyType="next"
+              />
+            </View>
+          </View>
 
-          <Text style={styles.label}>Expiration Date</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="MM/YYYY or DD/MM/YYYY"
-            value={expDate}
-            onChangeText={setExpDate}
-          />
-
-          <Text style={styles.label}>Dose</Text>
-          <TextInput
-            style={styles.input}
+          <TextField
+            label="Dose"
             placeholder="e.g. 500mg"
-            value={dose}
-            onChangeText={setDose}
+            icon="beaker-outline"
+            value={fields.dose}
+            onChangeText={update("dose")}
+            autoCapitalize="none"
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
           />
-        </View>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Verify Medicine</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <AppButton
+            label="Verify medicine"
+            icon="shield-checkmark-outline"
+            loading={submitting}
+            onPress={handleSubmit}
+            style={styles.submit}
+          />
+
+          <AppButton
+            label="Clear form"
+            variant="ghost"
+            disabled={submitting}
+            onPress={handleClear}
+            style={styles.clear}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  fill: { flex: 1 },
   scrollContent: {
-    padding: 24,
-    paddingTop: 48,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#64748b",
-    marginBottom: 24,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl,
   },
   helperBox: {
-    backgroundColor: "#e0f2fe",
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: colors.primarySurface,
+    padding: spacing.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#bae6fd",
-    marginBottom: 24,
+    borderColor: "#bfdbfe",
+    marginBottom: spacing.xl,
   },
   helperHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: spacing.md,
   },
+  helperTitleRow: { flexDirection: "row", alignItems: "center" },
   helperTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#0369a1",
+    ...typography.label,
+    color: colors.primaryDark,
+    marginLeft: spacing.sm,
   },
   helperText: {
-    fontSize: 14,
-    color: "#0c4a6e",
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-    marginBottom: 8,
+    ...typography.mono,
+    color: colors.text,
+    lineHeight: 19,
+    marginBottom: spacing.md,
   },
   helperInstruction: {
-    fontSize: 12,
-    color: "#0284c7",
-    fontStyle: "italic",
+    ...typography.caption,
+    color: colors.primaryDark,
   },
-  formGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 20,
-    color: "#0f172a",
-  },
-  submitButton: {
-    backgroundColor: "#2563eb",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 12,
-  },
-  submitButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
+  row: { flexDirection: "row" },
+  rowItem: { flex: 1 },
+  rowSpacer: { width: spacing.md },
+  submit: { marginTop: spacing.sm },
+  clear: { marginTop: spacing.sm },
 });

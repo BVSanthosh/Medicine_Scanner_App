@@ -1,178 +1,243 @@
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCameraPermissions } from "expo-camera";
+import { Image } from "expo-image";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
-  Dimensions,
-  Image,
-  SafeAreaView,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppButton } from "../components/AppButton";
+import { colors, radius, shadow, spacing, typography } from "../theme";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const GUIDE_STEPS = [
+  {
+    key: "align",
+    icon: "scan-outline" as const,
+    title: "Line it up",
+    desc: "Put the barcode or the printed label squarely inside the blue box. Only that area is read.",
+    image: require("../../assets/instruction1.png"),
+  },
+  {
+    key: "light",
+    icon: "sunny-outline" as const,
+    title: "Keep it lit",
+    desc: "Avoid glare and shadows across the text. Use the torch button if the pack is dim.",
+    image: require("../../assets/instruction2.png"),
+  },
+  {
+    key: "text",
+    icon: "text-outline" as const,
+    title: "No barcode? Scan the text",
+    desc: "Tap the round button to read the printed label instead. We will fill in what we find.",
+    image: require("../../assets/instruction3.png"),
+  },
+];
 
 export default function InstructionsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
-  const [currentGuideStep, setCurrentGuideStep] = useState(0);
 
-  // Use require() to load local images from your assets folder
-  const guideSteps = [
-    {
-      title: "Align Barcode",
-      desc: "Place the medicine's barcode squarely inside the blue box.",
-      image: require("../../assets/instruction1.png"),
+  const scrollRef = useRef<ScrollView>(null);
+  // Measured rather than taken from Dimensions: the carousel is inset by the
+  // screen padding, so window width would put the paging maths out by 2x24px.
+  const [pageWidth, setPageWidth] = useState(0);
+  const [step, setStep] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  const onCarouselLayout = useCallback((event: LayoutChangeEvent) => {
+    setPageWidth(event.nativeEvent.layout.width);
+  }, []);
+
+  const onMomentumScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (pageWidth <= 0) return;
+      const index = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
+      setStep(Math.min(Math.max(index, 0), GUIDE_STEPS.length - 1));
     },
-    {
-      title: "Good Lighting",
-      desc: "Ensure there is no glare blocking the text or barcode.",
-      image: require("../../assets/instruction2.png"),
+    [pageWidth],
+  );
+
+  const isLastStep = step === GUIDE_STEPS.length - 1;
+
+  const goToStep = useCallback(
+    (index: number) => {
+      scrollRef.current?.scrollTo({ x: index * pageWidth, animated: true });
+      setStep(index);
     },
-    {
-      title: "Scan Text Directly",
-      desc: "If the barcode fails, tap 'Scan Text' to read the printed label.",
-      image: require("../../assets/instruction3.png"),
-    },
-  ];
+    [pageWidth],
+  );
 
-  const handleScroll = (event: any) => {
-    const scrollPosition = event.nativeEvent.contentOffset.x;
-    const currentIndex = Math.round(scrollPosition / SCREEN_WIDTH);
-    setCurrentGuideStep(currentIndex);
-  };
+  const finish = useCallback(async () => {
+    setSubmitting(true);
+    try {
+      await AsyncStorage.setItem("hasSeenOnboarding", "true");
 
-  const completeOnboardingAndRequestPermissions = async () => {
-    await AsyncStorage.setItem("hasSeenOnboarding", "true");
-
-    if (!permission?.granted) {
-      await requestPermission();
+      if (!permission?.granted && permission?.canAskAgain !== false) {
+        await requestPermission();
+      }
+      await Location.requestForegroundPermissionsAsync();
+    } catch (error) {
+      // Never block entry to the app on a storage or permission hiccup - the
+      // scanner screen asks for camera access again if it is still missing.
+      console.error("Onboarding completion failed:", error);
+    } finally {
+      setSubmitting(false);
+      router.replace("/(tabs)/scan");
     }
+  }, [permission, requestPermission, router]);
 
-    await Location.requestForegroundPermissionsAsync();
-    router.replace("/(tabs)/scan");
-  };
+  const handlePrimaryPress = useCallback(() => {
+    if (isLastStep) {
+      finish();
+    } else {
+      goToStep(step + 1);
+    }
+  }, [finish, goToStep, isLastStep, step]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>How to Scan</Text>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Text style={styles.eyebrow}>Getting started</Text>
+        <Text style={styles.title}>How to scan a pack</Text>
+      </View>
 
-      <View style={styles.carouselContainer}>
-        <ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={handleScroll}
-          style={styles.scrollView}
-        >
-          {guideSteps.map((step, index) => (
-            <View key={index} style={styles.slide}>
-              {/* React Native Image component loading local require() source */}
-              <Image
-                source={step.image}
-                style={styles.guideImage}
-                resizeMode="contain"
-              />
-              <Text style={styles.slideTitle}>{step.title}</Text>
-              <Text style={styles.slideDesc}>{step.desc}</Text>
-            </View>
-          ))}
-        </ScrollView>
+      <View style={styles.carousel} onLayout={onCarouselLayout}>
+        {pageWidth > 0 ? (
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={onMomentumScrollEnd}
+          >
+            {GUIDE_STEPS.map((guide) => (
+              <View key={guide.key} style={[styles.slide, { width: pageWidth }]}>
+                <View style={styles.imageCard}>
+                  <Image
+                    source={guide.image}
+                    style={styles.image}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                </View>
+                <View style={styles.stepIcon}>
+                  <Ionicons
+                    name={guide.icon}
+                    size={20}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={styles.slideTitle}>{guide.title}</Text>
+                <Text style={styles.slideDesc}>{guide.desc}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        ) : null}
       </View>
 
       <View style={styles.pagination}>
-        {guideSteps.map((_, index) => (
-          <View
-            key={index}
-            style={[styles.dot, currentGuideStep === index && styles.activeDot]}
+        {GUIDE_STEPS.map((guide, index) => (
+          <Pressable
+            key={guide.key}
+            accessibilityRole="button"
+            accessibilityLabel={`Go to step ${index + 1}`}
+            hitSlop={8}
+            onPress={() => goToStep(index)}
+            style={[styles.dot, step === index && styles.dotActive]}
           />
         ))}
       </View>
 
-      <TouchableOpacity
-        style={styles.primaryButton}
-        onPress={completeOnboardingAndRequestPermissions}
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(insets.bottom, spacing.lg) },
+        ]}
       >
-        <Text style={styles.buttonText}>Get Started</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
+        <AppButton
+          label={isLastStep ? "Allow camera and start" : "Next"}
+          icon={isLastStep ? "camera-outline" : undefined}
+          loading={submitting}
+          onPress={handlePrimaryPress}
+        />
+        {!isLastStep ? (
+          <AppButton label="Skip" variant="ghost" onPress={finish} />
+        ) : null}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#ffffff",
+  container: { flex: 1, backgroundColor: colors.surface },
+  header: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
+  eyebrow: {
+    ...typography.label,
+    color: colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  title: { ...typography.display, color: colors.text, marginTop: spacing.xs },
+
+  carousel: { flex: 1, marginTop: spacing.xl },
+  slide: { paddingHorizontal: spacing.xl, alignItems: "center" },
+  imageCard: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceMuted,
+    ...shadow.card,
+  },
+  image: { width: "100%", height: "100%" },
+  stepIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySurface,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 32,
-    marginTop: 40,
-  },
-  carouselContainer: {
-    height: 340,
-    width: SCREEN_WIDTH,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  slide: {
-    width: SCREEN_WIDTH,
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  guideImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: 16,
-    marginBottom: 24,
+    marginTop: spacing.xl,
   },
   slideTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#1e293b",
-    marginBottom: 12,
+    ...typography.title,
+    color: colors.text,
+    marginTop: spacing.md,
     textAlign: "center",
   },
   slideDesc: {
-    fontSize: 16,
-    color: "#475569",
+    ...typography.body,
+    color: colors.textSecondary,
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: 22,
+    marginTop: spacing.sm,
   },
+
   pagination: {
     flexDirection: "row",
-    marginTop: 24,
-    marginBottom: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: spacing.xl,
   },
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: "#cbd5e1",
+    borderRadius: radius.pill,
+    backgroundColor: colors.borderStrong,
     marginHorizontal: 4,
   },
-  activeDot: {
-    backgroundColor: "#2563eb",
-    width: 20,
-  },
-  primaryButton: {
-    backgroundColor: "#2563eb",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignItems: "center",
-    width: "100%",
-    marginBottom: 20,
-  },
-  buttonText: { color: "#ffffff", fontSize: 18, fontWeight: "bold" },
+  dotActive: { backgroundColor: colors.primary, width: 22 },
+
+  footer: { paddingHorizontal: spacing.xl },
 });

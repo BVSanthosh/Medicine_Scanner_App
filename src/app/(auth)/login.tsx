@@ -1,208 +1,270 @@
-import { FontAwesome5 } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppButton } from "../../components/AppButton";
+import { TextField } from "../../components/TextField";
+import { colors, radius, shadow, spacing, typography } from "../../theme";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please enter both email and password.");
-      return;
-    }
+  const signIn = useCallback(
+    async (token: string) => {
+      setSubmitting(true);
+      try {
+        // ==== TODO: REPLACE WITH THE REAL API CALL ========================
+        //
+        // const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        //   method: "POST",
+        //   headers: { "Content-Type": "application/json" },
+        //   body: JSON.stringify({ email: email.trim(), password }),
+        // });
+        //
+        // if (!response.ok) throw new Error("Incorrect email or password.");
+        //
+        // const { token } = await response.json();
+        //
+        // ==================================================================
+        await AsyncStorage.setItem("userToken", token);
 
-    // Save token to local storage so app/index.tsx knows the user is authenticated
-    await AsyncStorage.setItem("userToken", "mock_jwt_token_123");
+        const hasSeenOnboarding =
+          await AsyncStorage.getItem("hasSeenOnboarding");
+        router.replace(hasSeenOnboarding ? "/(tabs)/scan" : "/instructions");
+      } catch (error) {
+        Alert.alert(
+          "Could not sign in",
+          error instanceof Error
+            ? error.message
+            : "Something went wrong signing you in. Please try again.",
+        );
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [router],
+  );
 
-    // Route to the main tab navigator
-    router.replace("/(tabs)/scan");
-  };
+  const handleLogin = useCallback(() => {
+    const nextErrors: { email?: string; password?: string } = {};
+    if (!email.trim()) nextErrors.email = "Enter your email address.";
+    else if (!EMAIL_RE.test(email.trim()))
+      nextErrors.email = "That does not look like a valid email address.";
+    if (!password) nextErrors.password = "Enter your password.";
 
-  const handleSocialLogin = async (provider: string) => {
-    // In production, this would trigger the Expo AuthSession or Firebase Auth flow
-    console.log(`Logging in with ${provider}...`);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
 
-    await AsyncStorage.setItem("userToken", `mock_${provider}_token_123`);
-    router.replace("/(tabs)/scan");
-  };
+    signIn("mock_jwt_token_123");
+  }, [email, password, signIn]);
+
+  const handleSocialLogin = useCallback(
+    (provider: string) => {
+      // In production the provider token comes from Expo AuthSession first and
+      // is then exchanged for a session by the backend.
+      signIn(`mock_${provider.toLowerCase()}_token_123`);
+    },
+    [signIn],
+  );
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={styles.container}
     >
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Welcome Back</Text>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: insets.top + spacing.xxl,
+            paddingBottom: insets.bottom + spacing.xxl,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.logo}>
+          <Ionicons name="shield-checkmark" size={32} color={colors.primary} />
+        </View>
+
+        <Text style={styles.title}>Welcome back</Text>
         <Text style={styles.subtitle}>
-          Sign in to continue verifying medicines.
+          Sign in to verify medicines and keep your scan history.
         </Text>
 
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+        <View style={styles.form}>
+          <TextField
+            label="Email"
+            placeholder="you@example.com"
+            icon="mail-outline"
+            value={email}
+            onChangeText={(value) => {
+              setEmail(value);
+              if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+            }}
+            error={errors.email}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+          />
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={true}
-        />
+          <TextField
+            label="Password"
+            placeholder="Your password"
+            icon="lock-closed-outline"
+            secure
+            value={password}
+            onChangeText={(value) => {
+              setPassword(value);
+              if (errors.password)
+                setErrors((e) => ({ ...e, password: undefined }));
+            }}
+            error={errors.password}
+            autoComplete="current-password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={handleLogin}
+          />
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Text style={styles.loginButtonText}>Login</Text>
-        </TouchableOpacity>
+          <AppButton
+            label="Log in"
+            onPress={handleLogin}
+            loading={submitting}
+            style={styles.submit}
+          />
+        </View>
 
-        {/* Divider */}
-        <View style={styles.dividerContainer}>
+        <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Or continue with</Text>
+          <Text style={styles.dividerText}>or continue with</Text>
           <View style={styles.dividerLine} />
         </View>
 
-        {/* Social Login Buttons */}
-        <TouchableOpacity
-          style={styles.socialButton}
+        <Pressable
+          accessibilityRole="button"
+          disabled={submitting}
           onPress={() => handleSocialLogin("Google")}
+          style={({ pressed }) => [
+            styles.socialButton,
+            pressed && styles.pressed,
+          ]}
         >
-          <FontAwesome5 name="google" size={20} color="#db4437" />
-          <Text style={styles.socialButtonText}>Continue with Google</Text>
-        </TouchableOpacity>
+          <FontAwesome5 name="google" size={18} color="#db4437" />
+          <Text style={styles.socialText}>Continue with Google</Text>
+        </Pressable>
 
-        <TouchableOpacity
-          style={styles.socialButton}
+        <Pressable
+          accessibilityRole="button"
+          disabled={submitting}
           onPress={() => handleSocialLogin("Apple")}
+          style={({ pressed }) => [
+            styles.socialButton,
+            pressed && styles.pressed,
+          ]}
         >
-          <FontAwesome5 name="apple" size={24} color="#000000" />
-          <Text style={styles.socialButtonText}>Continue with Apple</Text>
-        </TouchableOpacity>
+          <FontAwesome5 name="apple" size={20} color={colors.text} />
+          <Text style={styles.socialText}>Continue with Apple</Text>
+        </Pressable>
 
-        <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => router.push("/register")}>
-            <Text style={styles.registerLink}>Register</Text>
-          </TouchableOpacity>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>New to MediCheck? </Text>
+          <Pressable
+            accessibilityRole="link"
+            hitSlop={8}
+            onPress={() => router.push("/(auth)/register")}
+          >
+            <Text style={styles.footerLink}>Create an account</Text>
+          </Pressable>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  formContainer: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#64748b",
-    marginBottom: 40,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 20,
-    color: "#0f172a",
-  },
-  loginButton: {
-    backgroundColor: "#2563eb",
-    paddingVertical: 16,
-    borderRadius: 12,
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { paddingHorizontal: spacing.xl, flexGrow: 1 },
+  logo: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primarySurface,
     alignItems: "center",
-    marginTop: 10,
+    justifyContent: "center",
+    marginBottom: spacing.xl,
   },
-  loginButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
+  title: { ...typography.display, color: colors.text },
+  subtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xxl,
+    lineHeight: 22,
   },
-  // Divider Styles
-  dividerContainer: {
+  form: { marginBottom: spacing.sm },
+  submit: { marginTop: spacing.sm },
+
+  divider: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 24,
+    marginVertical: spacing.xl,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#e2e8f0",
-  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: {
-    marginHorizontal: 16,
-    color: "#64748b",
-    fontSize: 14,
+    ...typography.caption,
+    color: colors.textMuted,
+    marginHorizontal: spacing.md,
   },
-  // Social Button Styles
+
   socialButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginBottom: 16,
+    borderColor: colors.border,
+    minHeight: 52,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+    ...shadow.card,
   },
-  socialButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#0f172a",
-    marginLeft: 12,
+  pressed: { opacity: 0.85 },
+  socialText: {
+    ...typography.heading,
+    fontSize: 15,
+    color: colors.text,
+    marginLeft: spacing.md,
   },
-  registerContainer: {
+
+  footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 16,
+    alignItems: "center",
+    marginTop: spacing.xl,
   },
-  registerText: {
-    color: "#64748b",
-    fontSize: 15,
-  },
-  registerLink: {
-    color: "#2563eb",
-    fontSize: 15,
-    fontWeight: "bold",
-  },
+  footerText: { ...typography.body, color: colors.textSecondary },
+  footerLink: { ...typography.body, color: colors.primary, fontWeight: "700" },
 });
