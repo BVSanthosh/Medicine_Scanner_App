@@ -1,0 +1,8 @@
+# EAS archives from the git repository, so exclude everything that is not the
+# app itself. Without this the FastAPI service is uploaded on every build.
+../server
+../.claude
+
+# Never ship local env files to the build servers.
+.env
+.env.*

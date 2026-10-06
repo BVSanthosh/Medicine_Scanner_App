@@ -1,0 +1,55 @@
+# Development stack. The API waits for Postgres to be genuinely ready, runs
+# migrations, then serves with reload.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      POSTGRES_DB: ${POSTGRES_DB:-medicine_scanner}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Host-side only, so you can inspect the DB with psql. Remove in
+      # production: the database should never be reachable from outside.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      # "Is the port open" is not the same as "can it serve queries". Without
+      # this the API starts first and crashes on an empty connection.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-medicine_scanner}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      # Inside the compose network the database is reachable by service name,
+      # overriding whatever .env says for local runs.
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # 0.0.0.0 on purpose: the phone on your LAN needs to reach this.
+      - "8000:8000"
+    volumes:
+      # Live reload during development. Drop this in production - the image
+      # should be immutable.
+      - ./src:/app/src:ro
+      - ./alembic:/app/alembic:ro
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

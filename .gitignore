@@ -36,8 +36,24 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-example
-
 # generated native folders
-/ios
-/android
+# These are path-anchored, so they must track where the app lives.
+client/ios
+client/android
+
+# --- server (FastAPI) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Secrets. Never commit a real .env - keep .env.example checked in instead.
+.env
+
+# Claude Code: .claude/settings.json is shared project config and IS committed.
+# Only personal overrides (locally approved permissions, machine paths) are not.
+.claude/settings.local.json
