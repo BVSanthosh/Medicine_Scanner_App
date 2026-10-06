@@ -1,0 +1,29 @@
+# Pinned deliberately. Unpinned deps mean a rebuild months from now silently
+# ships different code than the build you tested. Bump these on purpose.
+
+# --- web ---
+fastapi[standard]==0.141.1
+uvicorn[standard]==0.53.0
+
+# --- database ---
+SQLAlchemy[asyncio]==2.0.54
+asyncpg==0.31.0
+alembic==1.20.0
+
+# --- config & validation ---
+pydantic==2.13.5
+pydantic-settings==2.15.0
+email-validator==2.3.0
+
+# --- auth ---
+PyJWT[crypto]==2.14.0
+argon2-cffi==25.1.0
+
+# --- domain ---
+# GS1 / GTIN barcode parsing. Handles FNC1 element strings, fixed-length AIs,
+# check digits and the day-00 "end of month" date rule.
+biip==5.0.0
+google-genai==2.24.0
+
+# --- operational ---
+slowapi==0.1.10
